@@ -28,6 +28,7 @@ import time
 
 from agents.sql_agent import MAX_DISPLAY_ROWS
 from connectors.sqlite_connector import list_schemas, list_tables
+from rag.pipeline import _call_ollama
 from security.audit_logger import log_interaction
 from security.guardrail import OUT_OF_DOMAIN_RESPONSE, is_likely_off_topic
 from security.pii_detector import mask
@@ -177,10 +178,60 @@ def _empty_result(answer: str, intent: str, sources: list[str] | None = None) ->
     }
 
 
-def route(question: str) -> dict:
+# ── Conversation context resolver ────────────────────────────────────────────
+
+_VAGUE_SIGNALS = (
+    "this", "that", " it", "same", "above", "previous",
+    "also show", "as well", "instead", "the chart", "the result",
+    "the data", "the table", "those", "these", "convert this",
+)
+
+_RESOLVE_SYSTEM = "You are a query resolver. Output ONLY the resolved question, nothing else."
+
+_RESOLVE_PROMPT = """\
+A user is chatting with a data intelligence assistant. They asked a follow-up question \
+that uses vague references ("this", "that", "it", "the result", etc.).
+
+Rewrite their follow-up as a COMPLETE, SELF-CONTAINED question that includes all \
+necessary specifics (table name, schema, metric, chart type, etc.) inferred from history.
+
+Rules:
+- Output ONLY the resolved question. No explanation, no prefix like "Resolved:".
+- Replace every vague reference with the specific entity from the history.
+- If the question is already self-contained (no vague references), return it unchanged.
+
+Conversation history:
+{history}
+
+Follow-up question: {question}"""
+
+
+def _resolve_question(question: str, history: list[dict]) -> str:
+    """Expand vague follow-up questions into self-contained ones using history."""
+    q_lower = question.lower()
+    if not history or not any(sig in q_lower for sig in _VAGUE_SIGNALS):
+        return question
+
+    history_text = "\n".join(
+        f"{m['role'].capitalize()}: {m['content'][:400]}"
+        for m in history[-6:]
+    )
+    prompt = _RESOLVE_PROMPT.format(history=history_text, question=question)
+    resolved = _call_ollama(_RESOLVE_SYSTEM, prompt).strip()
+    for line in resolved.splitlines():
+        line = line.strip()
+        if line:
+            return line
+    return question
+
+
+def route(question: str, history: list[dict] | None = None) -> dict:
     """
     Classify the question, call the right agent, and return a unified result dict.
+    history: list of {role, content} dicts from recent conversation turns.
     """
+    if history:
+        question = _resolve_question(question, history)
     if is_likely_off_topic(question):
         return _empty_result(OUT_OF_DOMAIN_RESPONSE, "off_topic")
 

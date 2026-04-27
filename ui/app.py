@@ -28,35 +28,36 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-  /* ── Fixed banner ─────────────────────────────────────────────────────── */
+  /* ── Fixed centred banner ─────────────────────────────────────────────── */
   .theia-banner {
     position: fixed;
-    top: 2.875rem;          /* sit below Streamlit's native toolbar (~46px) */
+    top: 2.875rem;          /* sits below Streamlit's native toolbar (~46 px) */
     left: 0; right: 0;
     z-index: 999;
-    background: linear-gradient(135deg, #0a1628 0%, #12243f 100%);
+    background: linear-gradient(135deg, #07111f 0%, #0f1f38 100%);
     border-bottom: 1px solid #1e3a5f;
-    padding: 0.55rem 2rem;
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
+    padding: 0.65rem 1rem;
+    text-align: center;
   }
   .theia-banner .t-name {
-    font-size: 1.55rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 0.25em;
     color: #4A90D9;
-    line-height: 1;
+    text-shadow: 0 0 18px rgba(74,144,217,0.55), 0 0 40px rgba(74,144,217,0.25);
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.1;
   }
   .theia-banner .t-sub {
-    font-size: 0.72rem;
+    font-size: 0.65rem;
     color: #6fa8dc;
-    letter-spacing: 0.04em;
-    opacity: 0.75;
-    margin-top: 0.15rem;
+    letter-spacing: 0.35em;
+    opacity: 0.7;
+    margin-top: 0.1rem;
+    font-family: 'Segoe UI', Arial, sans-serif;
   }
   /* Push main content below the banner */
-  section.main .block-container { padding-top: 6rem !important; }
+  section.main .block-container { padding-top: 7rem !important; }
 
   /* ── Other UI elements ────────────────────────────────────────────────── */
   .source-tag { display:inline-block; background:#1e3a5f; color:#7eb8f7;
@@ -67,11 +68,8 @@ st.markdown("""
 </style>
 
 <div class="theia-banner">
-  <span style="font-size:1.6rem; line-height:1;">🔭</span>
-  <div>
-    <div class="t-name">𝕋𝕙𝕖𝕚𝕒</div>
-    <div class="t-sub">DATA INTELLIGENCE ASSISTANT &nbsp;·&nbsp; 100% LOCAL</div>
-  </div>
+  <div class="t-name">🔭 &nbsp; Ｔ Ｈ Ｅ Ｉ Ａ</div>
+  <div class="t-sub">DATA INTELLIGENCE ASSISTANT &nbsp;·&nbsp; 100 % LOCAL</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -208,7 +206,16 @@ if prompt := st.chat_input("Ask Theia about your data…"):
             import time
             start = time.monotonic()
             masked_q, pii_found = pii_mask(prompt)
-            result = route(masked_q)
+
+            # Build conversation history so Theia can resolve follow-up questions
+            history = []
+            for msg in st.session_state.messages:
+                if msg["role"] == "user":
+                    history.append({"role": "user", "content": msg["result"]["answer"]})
+                elif msg["role"] == "assistant" and msg["result"].get("intent") != "greeting":
+                    history.append({"role": "assistant", "content": msg["result"]["answer"][:500]})
+
+            result = route(masked_q, history=history[-8:])  # last 4 exchanges
             result["pii_masked"] = pii_found
             duration_ms = int((time.monotonic() - start) * 1000)
 
