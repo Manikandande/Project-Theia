@@ -88,6 +88,14 @@ _PROFILE_SIGNALS = [
     "what does.*table look like", "overview of",
 ]
 
+_DIAGRAM_SIGNALS = [
+    r"display.*relation", r"show.*relation", r"visuali[sz].*relation",
+    r"relationship.*diagram", r"relationship.*map", r"table.*relation",
+    r"relation.*table", r"diagram", r"pictori", r"draw.*relation",
+    r"map.*relation", r"how.*tables.*connect", r"how.*tables.*related",
+    r"entity.{0,10}relation", r"\berd\b",
+]
+
 _CHART_SIGNALS = [
     r"chart", r"graph", r"plot", r"visuali[sz]e?", r"visuali[sz]ation",
     r"bar chart", r"line chart", r"bar graph", r"line graph",
@@ -293,6 +301,14 @@ def route(question: str, history: list[dict] | None = None) -> dict:
             narrative, "profile",
             [f"{schema_hint}.{table_hint}"] if schema_hint else [],
         )
+
+    # ── Relationship diagram — pictorial/Unicode ERD for a whole schema ───────
+    # Fires when the user asks to *see* relationships (not just read about them)
+    # and no specific table is mentioned (that would be describe_table instead).
+    if _matches_any(question, _DIAGRAM_SIGNALS) and schema_hint and not table_hint:
+        from agents.schema_agent import generate_relationship_diagram
+        diagram = generate_relationship_diagram(schema_hint)
+        return _empty_result(diagram, "diagram", [f"{schema_hint}.*"])
 
     # ── General schema/structural intent ─────────────────────────────────────
     if _matches_any(question, _SCHEMA_SIGNALS):

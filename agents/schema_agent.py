@@ -203,3 +203,76 @@ def list_all_tables_summary() -> str:
         for t in tables:
             lines.append(f"  • {t}")
     return "\n".join(lines)
+
+
+def _erd_box(name: str) -> tuple[str, str, str]:
+    w = len(name) + 2
+    return f"┌{'─' * w}┐", f"│ {name} │", f"└{'─' * w}┘"
+
+
+def generate_relationship_diagram(schema: str) -> str:
+    """Programmatically build a Unicode tree ERD for an entire schema.
+
+    Tables are drawn as boxes; FK arrows show child ──fkCol──▶ parent direction.
+    Each table is printed once; back-references show '↳ [Table] see above'.
+    """
+    tables = list_tables(schema)
+
+    # children_of[parent] = [(fk_col, child_table)]  — inverted FK graph
+    children_of: dict[str, list[tuple[str, str]]] = {t: [] for t in tables}
+
+    for t in tables:
+        try:
+            meta = extract_table(schema, t)
+            for c in meta.columns:
+                if c.is_foreign_key and c.references:
+                    parent = (
+                        c.references.split(".")[0]
+                        if "." in c.references
+                        else c.references
+                    )
+                    if parent in children_of and parent != t:
+                        children_of[parent].append((c.name, t))
+        except Exception:
+            pass
+
+    # Roots = tables not listed as a child of any other table
+    all_children = {child for kids in children_of.values() for _, child in kids}
+    roots = [t for t in tables if t not in all_children] or ([tables[0]] if tables else [])
+
+    visited: set[str] = set()
+    out: list[str] = []
+
+    def render(table: str, depth: int = 0) -> None:
+        indent = "    " * depth
+        top, mid, bot = _erd_box(table)
+
+        if table in visited:
+            out.append(f"{indent}  ↳ [{table}]  ↑ see above")
+            return
+        visited.add(table)
+
+        out.append(f"{indent}{top}")
+        out.append(f"{indent}{mid}")
+        out.append(f"{indent}{bot}")
+
+        kids = children_of.get(table, [])
+        for i, (fk_col, child) in enumerate(kids):
+            conn = "╰" if i == len(kids) - 1 else "├"
+            out.append(f"{indent}  {conn}── {fk_col} ──▶")
+            render(child, depth + 1)
+
+    title = f" {schema.upper()} SCHEMA · TABLE RELATIONSHIPS "
+    w = max(len(title), 44)
+    out += [f"╔{'═' * w}╗", f"║{title.center(w)}║", f"╚{'═' * w}╝", ""]
+
+    for root in roots:
+        render(root)
+        out.append("")
+
+    # Any tables not yet reached (isolated or only self-referencing)
+    for t in [x for x in tables if x not in visited]:
+        render(t)
+        out.append("")
+
+    return "```\n" + "\n".join(out) + "\n```"

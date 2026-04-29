@@ -15,10 +15,11 @@ from config.settings import settings
 
 
 _SCHEMAS: list[tuple[str, Path]] = [
-    ("music",     settings.chinook_db),
-    ("sales",     settings.northwind_db),
-    ("rental",    settings.sakila_db),
-    ("geography", settings.world_db),
+    ("music",       settings.chinook_db),
+    ("sales",       settings.northwind_db),
+    ("rental",      settings.sakila_db),
+    ("geography",   settings.world_db),
+    ("healthcare",  settings.healthcare_db),
 ]
 
 

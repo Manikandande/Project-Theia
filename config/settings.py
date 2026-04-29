@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     northwind_db: Path = BASE_DIR / "data" / "northwind.db"
     sakila_db: Path = BASE_DIR / "data" / "sakila.db"
     world_db: Path = BASE_DIR / "data" / "world.db"
+    healthcare_db: Path = BASE_DIR / "data" / "healthcare.db"
 
     # Schema aliases (used in cross-database queries and Theia responses)
     schema_aliases: dict = {
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
         "sales": "northwind.db",
         "rental": "sakila.db",
         "geography": "world.db",
+        "healthcare": "healthcare.db",
     }
 
     # Ollama
